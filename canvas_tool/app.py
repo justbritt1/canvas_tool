@@ -63,7 +63,8 @@ file = ''
 
 # Define columns to keep
 COLUMNS_TO_KEEP = [
-    'name', 'id', 'sis_id', 'submitted','score', 'assignment'
+    'Name', 'SISID', 'SectionSISIDs',
+'Submitted','OverallScore', 'Assignment'
 ]
 
 df = pd.DataFrame()  # Initialize df here
@@ -78,8 +79,8 @@ def index():
 
     # Define required columns
     required_columns = [
-        'name', 'id', 'sis_id', 'submitted','score', 'assignment'
-    ]
+        'Name', 'SISID', 'SectionSISIDs',
+'Submitted','OverallScore']
 
     
     valid_file_uploaded = False  # Flag to indicate if a valid file has been uploaded
@@ -147,7 +148,7 @@ def index():
                     file_name = file.filename.rsplit('.', 1)[0]
 
                     # adding this column
-                    df_temp['assignment'] = 'Orientation activity'
+                    df_temp['Assignment'] = 'Orientation activity'
 
                     # Check if the file contains all required columns (including User)
                     if not all(column in df_temp.columns for column in required_columns):
@@ -186,8 +187,8 @@ def index():
                         return redirect(url_for('index'))
                      
                     
-                    # Remove rows where the 'Event' column contains 'Override'
-                    df_temp = df_temp[~df_temp['name'].str.contains('Override', case=False, na=False)]
+                    # Remove rows where the 'Name' column contains 'Test Student'
+                    df_temp = df_temp[~df_temp['Name'].str.contains('Test Student', case=False, na=False)]
                 
                     df = df_temp
                     flash('File upload successful!', 'success')
@@ -259,23 +260,26 @@ def delete_rows_page():
 def results():
     global df
 
-    # Remove rows where the 'User' column contains the word 'Preview' (case-insensitive)
-    df_cleaned = df[~df['name'].str.contains('Preview|student', case=False, na=False)].dropna()
+    # Changing 2 column names per request*
+    df = df.rename(columns={'Submitted': 'Date Submitted', 'OverallScore': 'Score'})
+
+    # Remove rows where the 'Name' column contains the word 'Test Student' (case-insensitive)
+    df_cleaned = df[~df['Name'].str.contains('Test Student', case=False, na=False)].dropna()
 
     # Sort the dataframe by 'id' and 'score' columns
     # 'score' in descending order ensures the highest grade comes first
-    df_cleaned = df_cleaned.sort_values(by=['id','score'], ascending=[True, False])# sort by value
-    # Drop duplicates, keeping the first occurrence (which now has the highest 'Value')
-    df_cleaned = df_cleaned.drop_duplicates(subset='id', keep='first')
+    df_cleaned = df_cleaned.sort_values(by=['SISID','Score'], ascending=[True, False])# sort by value
+    # Drop duplicates, keeping the first occurrence (which now has the highest 'Score')
+    df_cleaned = df_cleaned.drop_duplicates(subset='SISID', keep='first')
 
     # Reset the index after cleaning and dropping duplicates (optional)
     df_cleaned.reset_index(drop=True, inplace=True)
         
     # Sort the DataFrame by the 'name' column
-    df_sorted = df_cleaned.sort_values(by='name')
+    df_sorted = df_cleaned.sort_values(by='Name')
 
     # Count the number of unique users
-    user_count = df_sorted['id'].nunique()
+    user_count = df_sorted['SISID'].nunique()
 
     if request.method == 'POST':
         filename = request.form['filename']
@@ -295,41 +299,41 @@ def download():
     # Limit "Column" values to 20 characters
     #df['Column'] = df['Column'].apply(lambda x: x[:20] if isinstance(x, str) else x)
 
-    census_assign1 = 'Orientation Activity'
-    census_assign2 = 'Course Entry Quiz'
+    census_assign1 = 'Orientation activity'
+    cencus_assign2 = 'Census Entry Quiz'
 
     # Find the first index where the first column has a value
     #first_valid_index = df['Date'].first_valid_index()
 
     # Convert the 'Value' column to numeric, coercing errors to NaN
-    df['score'] = pd.to_numeric(df['score'], errors='coerce')
+    df['Score'] = pd.to_numeric(df['Score'], errors='coerce')
 
     # Drop rows where 'Value' is NaN
-    df_cleaned = df.dropna(subset=['score'])
+    df_cleaned = df.dropna(subset=['Score'])
 
     # Remove rows where the 'name' column contains 'Preview' or 'student' (case-insensitive)
-    df_cleaned = df_cleaned[~df_cleaned['name'].str.contains('Preview|student', case=False, na=False)]
+    df_cleaned = df_cleaned[~df_cleaned['Name'].str.contains('Test Student', case=False, na=False)]
 
     # Sort by 'Username' and 'Value' (descending for Value to keep highest grades)
-    df_cleaned = df_cleaned.sort_values(by=['id', 'score'], ascending=[True, False])
+    df_cleaned = df_cleaned.sort_values(by=['SISID', 'Score'], ascending=[True, False])
 
     # Drop duplicates, keeping the one with the highest 'Value'
-    df_cleaned = df_cleaned.drop_duplicates(subset='id', keep='first')
+    df_cleaned = df_cleaned.drop_duplicates(subset='SISID', keep='first')
 
     # in canvas there is no column named column ************************
 
    # Check if the column contains only one of the two specified values
-    mask = df_cleaned['assignment'].isin([census_assign1, census_assign2])
+    mask = df_cleaned['Assignment'].isin([census_assign1])
 
     # Check if all values under the column are the same
-    all_same = df_cleaned['assignment'].eq(df_cleaned['assignment'].iloc[0]).all()
+    all_same = df_cleaned['Assignment'].eq(df_cleaned['Assignment'].iloc[0]).all()
 
     # Combine the two conditions
     result = mask.all() or all_same
 
     # Filter rows where the grade condition is met
     # Check for a specific value
-    grade = df_cleaned['score'] >=1
+    grade = df_cleaned['Score'] >=1
 
     # now check
     if not result: # not true
@@ -347,12 +351,12 @@ def download():
     else:
         
         # Sort the DataFrame by the 'User' column
-        df_sorted = df_cleaned.sort_values(by='name')
+        df_sorted = df_cleaned.sort_values(by='Name')
         # Reset the index (optional)
         df_sorted.reset_index(drop=True, inplace=True)
 
         # Count the number of unique username
-        user_count = df_sorted['id'].nunique()
+        user_count = df_sorted['SISID'].nunique()
         count_str = str(user_count)
         
         # Combine the current directory with the new directory name
@@ -401,7 +405,7 @@ def download():
         # Write additional information at the bottom
         last_row = ws.max_row
         info_row = last_row + 3
-        ws.cell(row=info_row, column=3, value='TOTAL STUDENT COUNT: ' + str(df_sorted['id'].nunique()))
+        ws.cell(row=info_row, column=3, value='TOTAL STUDENT COUNT: ' + str(df_sorted['SISID'].nunique()))
 
         # Set the header for printing
         ws.oddHeader.center.text = filename
@@ -424,29 +428,29 @@ def census_incorrect(filename, result):
     #first_valid_index = df['Date'].first_valid_index()
 
     # Convert the 'Value' column to numeric, coercing errors to NaN
-    df['score'] = pd.to_numeric(df['score'], errors='coerce')
+    df['Score'] = pd.to_numeric(df['Score'], errors='coerce')
 
     # Drop rows where 'Value' is NaN
-    df_cleaned = df.dropna(subset=['score'])
+    df_cleaned = df.dropna(subset=['Score'])
 
     # Remove rows where the 'User' column contains 'Preview' or 'student' (case-insensitive)
-    df_cleaned = df_cleaned[~df_cleaned['name'].str.contains('Preview|student', case=False, na=False)]
+    df_cleaned = df_cleaned[~df_cleaned['Name'].str.contains('Preview|student', case=False, na=False)]
 
     # Sort by 'Username' and 'Value' (descending for Value to keep highest grades)
-    df_cleaned = df_cleaned.sort_values(by=['id', 'score'], ascending=[True, False])
+    df_cleaned = df_cleaned.sort_values(by=['SISID', 'Score'], ascending=[True, False])
 
     # Drop duplicates, keeping the one with the highest 'Value'
-    df_cleaned = df_cleaned.drop_duplicates(subset='id', keep='first')
+    df_cleaned = df_cleaned.drop_duplicates(subset='SISID', keep='first')
 
 
     # Reset the index (optional)
     df_cleaned.reset_index(drop=True, inplace=True)
 
     # Sort the DataFrame by the 'User' column
-    df_sorted = df_cleaned.sort_values(by='name') 
+    df_sorted = df_cleaned.sort_values(by='Name') 
 
     # Count the number of unique users
-    user_count = df_sorted['id'].nunique()
+    user_count = df_sorted['SISID'].nunique()
     count_str = str(user_count)
         
     # Combine the current directory with the new directory name
